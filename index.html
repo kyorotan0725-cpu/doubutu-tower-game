@@ -58,14 +58,12 @@
   const H = 600;
   const groundY = 555;
   const platformWidth = 360;
-  const animalTypes = [
-    { emoji: "🐱", color: "#f6bd60", r: 29 },
-    { emoji: "🐸", color: "#84c784", r: 26 },
-    { emoji: "🐼", color: "#c9d6df", r: 31 },
-    { emoji: "🐤", color: "#ffe066", r: 23 },
-    { emoji: "🐷", color: "#f4a7b9", r: 28 },
-    { emoji: "🐻", color: "#c99a6b", r: 32 }
-  ];
+const friendImage = new Image();
+friendImage.src = "friend1.png";
+
+const animalTypes = [
+  { image: friendImage, r: 35 }
+];
 
   let engine;
   let animals;
@@ -157,24 +155,31 @@ function makeAnimal(x, y, type) {
   const type = body.animal;
   const size = type.r * 2;
 
+  function drawAnimal(body, preview = false) {
+  const type = body.animal;
+  const size = type.r * 2;
+
   ctx.save();
   ctx.translate(body.position.x, body.position.y);
   ctx.rotate(body.angle);
 
-  ctx.fillStyle = type.color;
-  ctx.fillRect(-size / 2, -size / 2, size, size);
+  if (type.image.complete && type.image.naturalWidth > 0) {
+    const img = type.image;
+    const scale = size / Math.max(img.naturalWidth, img.naturalHeight);
+    const width = img.naturalWidth * scale;
+    const height = img.naturalHeight * scale;
 
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#5d5145";
-  ctx.strokeRect(-size / 2, -size / 2, size, size);
-
-  ctx.font = `${type.r * 1.35}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(type.emoji, 0, 1);
+    ctx.drawImage(
+      img,
+      -width / 2,
+      -height / 2,
+      width,
+      height
+    );
+  }
 
   ctx.restore();
-  }
+}
 
 
   function draw() {
