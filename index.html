@@ -151,9 +151,37 @@ function makeAnimal(x, y, type) {
     status.textContent = `積んだ動物：${dropped} 匹`;
   }
 
+  
   function drawAnimal(body, preview = false) {
-  const type = body.animal;
-  const size = type.r * 2;
+    const type = body.animal;
+
+    ctx.save();
+    ctx.translate(body.position.x, body.position.y);
+    ctx.rotate(body.angle);
+
+    if (type.image.complete && type.image.naturalWidth > 0) {
+      const img = type.image;
+      const maxSize = type.r * 2;
+      const scale = maxSize / Math.max(
+        img.naturalWidth,
+        img.naturalHeight
+      );
+
+      const width = img.naturalWidth * scale;
+      const height = img.naturalHeight * scale;
+
+      ctx.drawImage(
+        img,
+        -width / 2,
+        -height / 2,
+        width,
+        height
+      );
+    }
+
+    ctx.restore();
+  }
+  
 
   ctx.save();
   ctx.translate(body.position.x, body.position.y);
