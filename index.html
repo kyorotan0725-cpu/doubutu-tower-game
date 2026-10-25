@@ -1,54 +1,55 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>どうぶつタワー - Prototype</title>
+<title>友達タワーバトル</title>
 <style>
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    padding: 20px 12px;
-    background: #f5f0e6;
-    color: #40382f;
-    font-family: sans-serif;
-    text-align: center;
-  }
-  h1 { margin: 4px 0 8px; font-size: 27px; }
-  p { margin: 8px 0 14px; }
-  #game {
-    display: block;
-    width: min(100%, 800px);
-    height: auto;
-    margin: auto;
-    border: 3px solid #40382f;
-    border-radius: 12px;
-    background: #fffdf6;
-    touch-action: none;
-  }
-  button {
-    margin-top: 14px;
-    padding: 12px 24px;
-    border: 0;
-    border-radius: 10px;
-    background: #537c59;
-    color: white;
-    font-size: 16px;
-    cursor: pointer;
-  }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px 12px;
+  background: #f5f0e6;
+  color: #40382f;
+  font-family: sans-serif;
+  text-align: center;
+}
+h1 { margin: 4px 0 8px; font-size: 27px; }
+p { margin: 8px 0 14px; }
+#game {
+  display: block;
+  width: min(100%, 800px);
+  height: auto;
+  margin: auto;
+  border: 3px solid #40382f;
+  border-radius: 12px;
+  background: #fffdf6;
+  touch-action: none;
+}
+button {
+  margin-top: 14px;
+  padding: 12px 24px;
+  border: 0;
+  border-radius: 10px;
+  background: #537c59;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
-<h1>🐾 どうぶつタワー</h1>
-<p>マウスで位置を決めてクリック！ 動物を積み上げよう。</p>
+<h1>😂 友達タワーバトル</h1>
+<p>マウスで位置を決めてクリック！ 友達を積み上げよう。</p>
 <canvas id="game" width="800" height="600"></canvas>
-<div id="status">動物を落としてみよう！</div>
+<div id="status">画像を読み込んでいます...</div>
 <button id="restart">もう一度遊ぶ</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
 (() => {
-  const { Engine, Bodies, Body, Composite, Events } = Matter;
+  const { Engine, Bodies, Composite } = Matter;
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -58,176 +59,131 @@
   const H = 600;
   const groundY = 555;
   const platformWidth = 360;
-const friendImage = new Image();
-friendImage.src = "IMG_9713.PNG";
 
-const animalTypes = [
-  { image: friendImage, r: 35 }
-];
+  const friendImage = new Image();
+  friendImage.src = "IMG_9713.PNG";
+
+  const person = {
+    image: friendImage,
+    width: 54,
+    height: 100
+  };
 
   let engine;
-  let animals;
+  let people = [];
   let current;
   let mouseX = W / 2;
   let dropped = 0;
   let playing = true;
   let lastDrop = 0;
-  let nextId = 0;
-
-  let dangerSince = null;
 
   function setup() {
+    if (engine) {
+      Composite.clear(engine.world, false);
+      Engine.clear(engine);
+    }
+
     engine = Engine.create();
     engine.gravity.y = 1.15;
     engine.positionIterations = 8;
     engine.velocityIterations = 8;
 
-    animals = [];
-
-    const ground = Bodies.rectangle(
-  W / 2,
-  groundY + 25,
-  platformWidth,
-  50,
-  { isStatic: true, label: "ground" }
-  );
-
-    Composite.add(engine.world, ground);
-
+    people = [];
     dropped = 0;
     playing = true;
     lastDrop = 0;
-    dangerSince = null;
-    nextId = 0;
     mouseX = W / 2;
-    current = animalTypes[
-      Math.floor(Math.random() * animalTypes.length)
-    ];
+    current = person;
 
-    status.textContent = "動物を落としてみよう！";
+    const ground = Bodies.rectangle(
+      W / 2,
+      groundY + 25,
+      platformWidth,
+      50,
+      { isStatic: true, label: "ground" }
+    );
+
+    Composite.add(engine.world, ground);
+
+    status.textContent = friendImage.complete &&
+      friendImage.naturalWidth > 0
+      ? "友達を落としてみよう！"
+      : "画像を読み込み中、または画像が見つかりません";
   }
 
-  
-function makeAnimal(x, y, type) {
-  const size = type.r * 2;
+  function makePerson(x, y) {
+    const body = Bodies.rectangle(
+      x, y,
+      person.width * 0.65,
+      person.height * 0.85,
+      {
+        restitution: 0.05,
+        friction: 0.8,
+        frictionStatic: 0.9,
+        density: 0.002,
+        label: "person"
+      }
+    );
 
-  const body = Bodies.rectangle(x, y, size, size, {
-    restitution: 0.05,
-    friction: 0.8,
-    frictionStatic: 0.9,
-    density: 0.002,
-    label: "animal"
-  });
-
-  body.animal = type;
-  body.animalId = nextId++;
-  body.createdAt = performance.now();
-  body.highStillSince = null;
-
-  return body;
+    body.person = person;
+    body.createdAt = performance.now();
+    return body;
   }
 
-
-  function dropAnimal() {
+  function dropPerson() {
     const now = performance.now();
     if (!playing || now - lastDrop < 350) return;
-
     lastDrop = now;
 
     const x = Math.max(
-      current.r + 4,
-      Math.min(W - current.r - 4, mouseX)
+      person.width / 2,
+      Math.min(W - person.width / 2, mouseX)
     );
 
-    const body = makeAnimal(x, 65, current);
-    animals.push(body);
+    const body = makePerson(x, 75);
+    people.push(body);
     Composite.add(engine.world, body);
 
     dropped++;
-    current = animalTypes[
-      Math.floor(Math.random() * animalTypes.length)
-    ];
-
-    status.textContent = `積んだ動物：${dropped} 匹`;
+    status.textContent = `積んだ人数：${dropped}`;
   }
 
-  
-  function drawAnimal(body, preview = false) {
-    const type = body.animal;
+  function drawPerson(body) {
+    const img = body.person.image;
+    if (!img.complete || img.naturalWidth === 0) return;
+
+    const scale = Math.min(
+      person.width / img.naturalWidth,
+      person.height / img.naturalHeight
+    );
+
+    const width = img.naturalWidth * scale;
+    const height = img.naturalHeight * scale;
 
     ctx.save();
     ctx.translate(body.position.x, body.position.y);
     ctx.rotate(body.angle);
-
-    if (type.image.complete && type.image.naturalWidth > 0) {
-      const img = type.image;
-      const maxSize = type.r * 2;
-      const scale = maxSize / Math.max(
-        img.naturalWidth,
-        img.naturalHeight
-      );
-
-      const width = img.naturalWidth * scale;
-      const height = img.naturalHeight * scale;
-
-      ctx.drawImage(
-        img,
-        -width / 2,
-        -height / 2,
-        width,
-        height
-      );
-    }
-
+    ctx.drawImage(img, -width / 2, -height / 2, width, height);
     ctx.restore();
   }
-  
-
-  ctx.save();
-  ctx.translate(body.position.x, body.position.y);
-  ctx.rotate(body.angle);
-
-  if (type.image.complete && type.image.naturalWidth > 0) {
-    const img = type.image;
-    const scale = size / Math.max(img.naturalWidth, img.naturalHeight);
-    const width = img.naturalWidth * scale;
-    const height = img.naturalHeight * scale;
-
-    ctx.drawImage(
-      img,
-      -width / 2,
-      -height / 2,
-      width,
-      height
-    );
-  }
-
-  ctx.restore();
-}
-
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
 
-    // 背景と床
     ctx.fillStyle = "#fffdf6";
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#d8c7a3";
+
     const platformX = (W - platformWidth) / 2;
+    ctx.fillStyle = "#d8c7a3";
+    ctx.fillRect(
+      platformX, groundY,
+      platformWidth, H - groundY
+    );
 
-ctx.fillRect(
-  platformX,
-  groundY,
-  platformWidth,
-  H - groundY
-  );
-
-
-    // 次に落とす動物のガイド
     if (playing) {
       const x = Math.max(
-        current.r + 4,
-        Math.min(W - current.r - 4, mouseX)
+        person.width / 2,
+        Math.min(W - person.width / 2, mouseX)
       );
 
       ctx.save();
@@ -235,20 +191,19 @@ ctx.fillRect(
       ctx.strokeStyle = "#a89d8d";
       ctx.beginPath();
       ctx.moveTo(x, 15);
-      ctx.lineTo(x, 100);
+      ctx.lineTo(x, 115);
       ctx.stroke();
       ctx.restore();
 
-      drawAnimal({
-        position: { x, y: 65 },
+      drawPerson({
+        position: { x, y: 75 },
         angle: 0,
-        animal: current
-      }, true);
+        person: person
+      });
     }
 
-    // 落ちた動物
-    for (const body of animals) {
-      drawAnimal(body);
+    for (const body of people) {
+      drawPerson(body);
     }
 
     if (!playing) {
@@ -259,35 +214,29 @@ ctx.fillRect(
       ctx.font = "bold 42px sans-serif";
       ctx.fillText("GAME OVER", W / 2, H / 2 - 15);
       ctx.font = "22px sans-serif";
-      ctx.fillText(
-        `${dropped} 匹 積み上げました！`,
-        W / 2, H / 2 + 30
-      );
+      ctx.fillText(`${dropped} 人 積み上げました！`,
+        W / 2, H / 2 + 30);
     }
   }
 
-  
-function checkGameOver() {
-  if (!playing) return;
+  function checkGameOver() {
+    if (!playing) return;
 
-  const now = performance.now();
+    const now = performance.now();
+    const fallen = people.some(body => {
+      if (now - body.createdAt < 1200) return false;
 
-  // 落とした直後の動物は判定しない
-  const fallenAnimal = animals.some(body => {
-    if (now - body.createdAt < 1200) return false;
+      return (
+        body.position.x < -person.width ||
+        body.position.x > W + person.width ||
+        body.position.y > H + person.height
+      );
+    });
 
-    // 左右・下の場外に出たか判定
-    return (
-      body.position.x < -body.animal.r ||
-      body.position.x > W + body.animal.r ||
-      body.position.y > H + body.animal.r
-    );
-  });
-
-  if (fallenAnimal) {
-    playing = false;
-    status.textContent = "場外に落ちた！ ゲームオーバー！";
-  }
+    if (fallen) {
+      playing = false;
+      status.textContent = "場外に落ちた！ ゲームオーバー！";
+    }
   }
 
   canvas.addEventListener("pointermove", event => {
@@ -299,14 +248,24 @@ function checkGameOver() {
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
     mouseX = (event.clientX - rect.left) * W / rect.width;
-    dropAnimal();
+    dropPerson();
   });
 
   document.getElementById("restart").addEventListener("click", setup);
 
+  friendImage.onload = () => {
+    if (playing) status.textContent = "友達を落としてみよう！";
+  };
+
+  friendImage.onerror = () => {
+    status.textContent =
+      "画像が見つかりません。ファイル名を確認してください。";
+  };
+
   setup();
 
   let lastTime = performance.now();
+
   function frame(now) {
     const delta = Math.min(now - lastTime, 33);
     lastTime = now;
