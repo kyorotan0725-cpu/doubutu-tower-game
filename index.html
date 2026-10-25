@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>どうぶつタワー - Prototype</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 12px;
+    background: #f5f0e6;
+    color: #40382f;
+    font-family: sans-serif;
+    text-align: center;
+  }
+  h1 { margin: 4px 0 8px; font-size: 27px; }
+  p { margin: 8px 0 14px; }
+  #game {
+    display: block;
+    width: min(100%, 800px);
+    height: auto;
+    margin: auto;
+    border: 3px solid #40382f;
+    border-radius: 12px;
+    background: #fffdf6;
+    touch-action: none;
+  }
+  button {
+    margin-top: 14px;
+    padding: 12px 24px;
+    border: 0;
+    border-radius: 10px;
+    background: #537c59;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<h1>🐾 どうぶつタワー</h1>
+<p>マウスで位置を決めてクリック！ 動物を積み上げよう。</p>
+<canvas id="game" width="800" height="600"></canvas>
+<div id="status">動物を落としてみよう！</div>
+<button id="restart">もう一度遊ぶ</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<script>
+(() => {
+  const { Engine, Bodies, Body, Composite, Events } = Matter;
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const status = document.getElementById("status");
+
+  const W = 800;
+  const H = 600;
+  const groundY = 555;
+  const platformWidth = 360;
+  const animalTypes = [
+    { emoji: "🐱", color: "#f6bd60", r: 29 },
+    { emoji: "🐸", color: "#84c784", r: 26 },
+    { emoji: "🐼", color: "#c9d6df", r: 31 },
+    { emoji: "🐤", color: "#ffe066", r: 23 },
+    { emoji: "🐷", color: "#f4a7b9", r: 28 },
+    { emoji: "🐻", color: "#c99a6b", r: 32 }
+  ];
+
+  let engine;
+  let animals;
+  let current;
+  let mouseX = W / 2;
+  let dropped = 0;
+  let playing = true;
+  let lastDrop = 0;
+  let nextId = 0;
+
+  let dangerSince = null;
+
+  function setup() {
+    engine = Engine.create();
+    engine.gravity.y = 1.15;
+    engine.positionIterations = 8;
+    engine.velocityIterations = 8;
+
+    animals = [];
+
+    const ground = Bodies.rectangle(
+  W / 2,
+  groundY + 25,
+  platformWidth,
+  50,
+  { isStatic: true, label: "ground" }
+  );
+
+    Composite.add(engine.world, ground);
+
+    dropped = 0;
+    playing = true;
+    lastDrop = 0;
+    dangerSince = null;
+    nextId = 0;
+    mouseX = W / 2;
+    current = animalTypes[
+      Math.floor(Math.random() * animalTypes.length)
+    ];
+
+    status.textContent = "動物を落としてみよう！";
+  }
+
+  
+function makeAnimal(x, y, type) {
+  const size = type.r * 2;
+
+  const body = Bodies.rectangle(x, y, size, size, {
+    restitution: 0.05,
+    friction: 0.8,
+    frictionStatic: 0.9,
+    density: 0.002,
+    label: "animal"
+  });
+
+  body.animal = type;
+  body.animalId = nextId++;
+  body.createdAt = performance.now();
+  body.highStillSince = null;
+
+  return body;
+  }
+
+
+  function dropAnimal() {
+    const now = performance.now();
+    if (!playing || now - lastDrop < 350) return;
+
+    lastDrop = now;
+
+    const x = Math.max(
+      current.r + 4,
+      Math.min(W - current.r - 4, mouseX)
+    );
+
+    const body = makeAnimal(x, 65, current);
+    animals.push(body);
+    Composite.add(engine.world, body);
+
+    dropped++;
+    current = animalTypes[
+      Math.floor(Math.random() * animalTypes.length)
+    ];
+
+    status.textContent = `積んだ動物：${dropped} 匹`;
+  }
+
+  function drawAnimal(body, preview = false) {
+  const type = body.animal;
+  const size = type.r * 2;
+
+  ctx.save();
+  ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle);
+
+  ctx.fillStyle = type.color;
+  ctx.fillRect(-size / 2, -size / 2, size, size);
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#5d5145";
+  ctx.strokeRect(-size / 2, -size / 2, size, size);
+
+  ctx.font = `${type.r * 1.35}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(type.emoji, 0, 1);
+
+  ctx.restore();
+  }
+
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 背景と床
+    ctx.fillStyle = "#fffdf6";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#d8c7a3";
+    const platformX = (W - platformWidth) / 2;
+
+ctx.fillRect(
+  platformX,
+  groundY,
+  platformWidth,
+  H - groundY
+  );
+
+
+    // 次に落とす動物のガイド
+    if (playing) {
+      const x = Math.max(
+        current.r + 4,
+        Math.min(W - current.r - 4, mouseX)
+      );
+
+      ctx.save();
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = "#a89d8d";
+      ctx.beginPath();
+      ctx.moveTo(x, 15);
+      ctx.lineTo(x, 100);
+      ctx.stroke();
+      ctx.restore();
+
+      drawAnimal({
+        position: { x, y: 65 },
+        angle: 0,
+        animal: current
+      }, true);
+    }
+
+    // 落ちた動物
+    for (const body of animals) {
+      drawAnimal(body);
+    }
+
+    if (!playing) {
+      ctx.fillStyle = "rgba(45, 40, 35, 0.65)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "white";
+      ctx.textAlign = "center";
+      ctx.font = "bold 42px sans-serif";
+      ctx.fillText("GAME OVER", W / 2, H / 2 - 15);
+      ctx.font = "22px sans-serif";
+      ctx.fillText(
+        `${dropped} 匹 積み上げました！`,
+        W / 2, H / 2 + 30
+      );
+    }
+  }
+
+  
+function checkGameOver() {
+  if (!playing) return;
+
+  const now = performance.now();
+
+  // 落とした直後の動物は判定しない
+  const fallenAnimal = animals.some(body => {
+    if (now - body.createdAt < 1200) return false;
+
+    // 左右・下の場外に出たか判定
+    return (
+      body.position.x < -body.animal.r ||
+      body.position.x > W + body.animal.r ||
+      body.position.y > H + body.animal.r
+    );
+  });
+
+  if (fallenAnimal) {
+    playing = false;
+    status.textContent = "場外に落ちた！ ゲームオーバー！";
+  }
+  }
+
+  canvas.addEventListener("pointermove", event => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = (event.clientX - rect.left) * W / rect.width;
+  });
+
+  canvas.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    mouseX = (event.clientX - rect.left) * W / rect.width;
+    dropAnimal();
+  });
+
+  document.getElementById("restart").addEventListener("click", setup);
+
+  setup();
+
+  let lastTime = performance.now();
+  function frame(now) {
+    const delta = Math.min(now - lastTime, 33);
+    lastTime = now;
+
+    Engine.update(engine, delta);
+    checkGameOver();
+    draw();
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
