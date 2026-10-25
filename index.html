@@ -155,10 +155,6 @@ function makeAnimal(x, y, type) {
   const type = body.animal;
   const size = type.r * 2;
 
-  function drawAnimal(body, preview = false) {
-  const type = body.animal;
-  const size = type.r * 2;
-
   ctx.save();
   ctx.translate(body.position.x, body.position.y);
   ctx.rotate(body.angle);
